@@ -1,0 +1,56 @@
+# ===========================================
+# DOCKER COMPOSE - C0NTROL
+# Aplicação Next.js + PostgreSQL
+# ===========================================
+
+services:
+  # Aplicação Next.js
+  c0ntrol_app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: c0ntrol_app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgresql://c0ntrol_user:c0ntrol_pass@c0ntrol_db:5432/c0ntrol
+      - NODE_ENV=production
+    depends_on:
+      c0ntrol_db:
+        condition: service_healthy
+    networks:
+      - c0ntrol-network
+
+  # PostgreSQL Database
+  c0ntrol_db:
+    image: postgres:16-alpine
+    container_name: c0ntrol_db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=c0ntrol_user
+      - POSTGRES_PASSWORD=c0ntrol_pass
+      - POSTGRES_DB=c0ntrol
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+    networks:
+      - c0ntrol-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U c0ntrol_user -d c0ntrol"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+# Volumes persistentes
+volumes:
+  postgres_data:
+    name: c0ntrol_postgres_data
+
+# Rede interna
+networks:
+  c0ntrol-network:
+    name: c0ntrol-network
+    driver: bridge
