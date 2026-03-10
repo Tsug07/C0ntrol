@@ -1,6 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query, CND } from '@/lib/db';
 
+// Validação de entrada
+function sanitizeString(str: string): string {
+  return str.trim().slice(0, 500); // Limitar tamanho
+}
+
+function isValidCNPJ(cnpj: string): boolean {
+  if (!cnpj || cnpj.trim() === '') return true;
+  const cleaned = cnpj.replace(/[\.\-\/\s]/g, '');
+  return /^\d{11,14}$/.test(cleaned);
+}
+
+function isValidDate(date: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) && !isNaN(Date.parse(date));
+}
+
+function isValidStatus(status: string): boolean {
+  return ['Válida', 'Vencida', 'A Vencer'].includes(status);
+}
+
 // GET - Listar todas as CNDs
 export async function GET() {
   try {
@@ -42,9 +61,53 @@ export async function POST(request: NextRequest) {
     // Verificar se é array (múltiplas CNDs) ou objeto único
     const cnds: CND[] = Array.isArray(body) ? body : [body];
 
+    // Validar número de registros (máximo 100 por request)
+    if (cnds.length > 100) {
+      return NextResponse.json(
+        { error: 'Máximo de 100 registros por vez' },
+        { status: 400 }
+      );
+    }
+
     const insertedCnds: CND[] = [];
 
     for (const cnd of cnds) {
+      // Validações
+      if (!cnd.cliente_nome || cnd.cliente_nome.trim() === '') {
+        return NextResponse.json(
+          { error: 'Nome do cliente é obrigatório' },
+          { status: 400 }
+        );
+      }
+
+      if (!cnd.cnd || cnd.cnd.trim() === '') {
+        return NextResponse.json(
+          { error: 'Número da CND é obrigatório' },
+          { status: 400 }
+        );
+      }
+
+      if (!isValidDate(cnd.vencimento)) {
+        return NextResponse.json(
+          { error: 'Data de vencimento inválida' },
+          { status: 400 }
+        );
+      }
+
+      if (!isValidStatus(cnd.status)) {
+        return NextResponse.json(
+          { error: 'Status inválido' },
+          { status: 400 }
+        );
+      }
+
+      if (cnd.cliente_cnpj && !isValidCNPJ(cnd.cliente_cnpj)) {
+        return NextResponse.json(
+          { error: 'CNPJ inválido' },
+          { status: 400 }
+        );
+      }
+      // Sanitizar dados antes de inserir
       const result = await query<CND>(`
         INSERT INTO cnds (
           id, cliente_codigo, cliente_nome, cliente_cnpj, cnd,
@@ -54,16 +117,16 @@ export async function POST(request: NextRequest) {
         RETURNING *
       `, [
         cnd.id,
-        cnd.cliente_codigo || '',
-        cnd.cliente_nome,
-        cnd.cliente_cnpj || '',
-        cnd.cnd,
+        sanitizeString(cnd.cliente_codigo || ''),
+        sanitizeString(cnd.cliente_nome),
+        sanitizeString(cnd.cliente_cnpj || ''),
+        sanitizeString(cnd.cnd),
         cnd.vencimento,
-        cnd.mes_referencia,
+        sanitizeString(cnd.mes_referencia),
         cnd.status,
-        cnd.observacao || '',
-        cnd.pendencia || '',
-        cnd.responsavel || '',
+        sanitizeString(cnd.observacao || ''),
+        sanitizeString(cnd.pendencia || ''),
+        sanitizeString(cnd.responsavel || ''),
         cnd.prazo || null
       ]);
 

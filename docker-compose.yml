@@ -14,7 +14,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - DATABASE_URL=postgresql://c0ntrol_user:c0ntrol_pass@c0ntrol_db:5432/c0ntrol
+      - DATABASE_URL=postgresql://c0ntrol_user:CanellaeSantos@c0ntrol_db:5432/c0ntrol
       - NODE_ENV=production
     depends_on:
       c0ntrol_db:
@@ -29,13 +29,13 @@ services:
     restart: unless-stopped
     environment:
       - POSTGRES_USER=c0ntrol_user
-      - POSTGRES_PASSWORD=c0ntrol_pass
+      - POSTGRES_PASSWORD=CanellaeSantos
       - POSTGRES_DB=c0ntrol
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     ports:
-      - "5432:5432"
+      - "5433:5432"
     networks:
       - c0ntrol-network
     healthcheck:

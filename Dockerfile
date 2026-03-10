@@ -10,7 +10,7 @@ WORKDIR /app
 
 # Copiar arquivos de dependências
 COPY package.json package-lock.json* ./
-RUN npm ci --only=production
+RUN npm ci
 
 # Stage 2: Builder
 FROM node:20-alpine AS builder
@@ -18,7 +18,11 @@ WORKDIR /app
 
 # Copiar dependências do stage anterior
 COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+# Copiar arquivos de configuração primeiro
+COPY package.json tsconfig.json next.config.js ./
+COPY postcss.config.js tailwind.config.js ./
+# Copiar código fonte
+COPY src ./src
 
 # Definir variáveis de ambiente para build
 ENV NEXT_TELEMETRY_DISABLED 1
@@ -38,10 +42,11 @@ ENV NEXT_TELEMETRY_DISABLED 1
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Copiar arquivos necessários
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
+# Copiar arquivos necessários do build
+# Primeiro copiar o standalone (já contém a estrutura básica)
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+# Depois copiar os arquivos estáticos por cima
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 # Definir usuário
 USER nextjs

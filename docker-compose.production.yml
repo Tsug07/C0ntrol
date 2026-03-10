@@ -1,0 +1,89 @@
+# ===========================================
+# DOCKER COMPOSE - PRODUÇÃO - C0NTROL
+# Aplicação Next.js + PostgreSQL para VPS
+# ===========================================
+
+services:
+  # Aplicação Next.js
+  c0ntrol_app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: c0ntrol_app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - NODE_ENV=production
+      - NEXT_TELEMETRY_DISABLED=1
+    env_file:
+      - .env.production
+    depends_on:
+      c0ntrol_db:
+        condition: service_healthy
+    networks:
+      - c0ntrol-network
+    # Limitar recursos (ajustar conforme VPS)
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    # Health check
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # PostgreSQL Database
+  c0ntrol_db:
+    image: postgres:16-alpine
+    container_name: c0ntrol_db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-c0ntrol_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB:-c0ntrol}
+      # Segurança adicional
+      - POSTGRES_INITDB_ARGS=--encoding=UTF8 --lc-collate=C --lc-ctype=C
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      # Backup automático (opcional)
+      - ./backups:/backups
+    # Não expor porta em produção (apenas acesso interno)
+    # ports:
+    #   - "5432:5432"
+    networks:
+      - c0ntrol-network
+    # Limitar recursos
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-c0ntrol_user} -d ${POSTGRES_DB:-c0ntrol}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+# Volumes persistentes
+volumes:
+  postgres_data:
+    name: c0ntrol_postgres_data
+
+# Rede interna
+networks:
+  c0ntrol-network:
+    name: c0ntrol-network
+    driver: bridge

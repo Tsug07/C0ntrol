@@ -87,7 +87,7 @@ export default function CNDsPage() {
 
     if (diasRestantes < 0) {
       return 'Vencida';
-    } else if (diasRestantes <= 30) {
+    } else if (diasRestantes <= 20) {
       return 'A Vencer';
     } else {
       return 'Válida';
@@ -124,45 +124,64 @@ export default function CNDsPage() {
             const worksheet = workbook.Sheets[sheetName];
             const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
+            // Helper para converter qualquer formato de data para YYYY-MM-DD
+            const parseDate = (raw: any): string => {
+              if (!raw) return '';
+              if (typeof raw === 'number') {
+                // Excel serial number
+                const excelEpoch = new Date(1899, 11, 30);
+                const d = new Date(excelEpoch.getTime() + raw * 86400000);
+                return d.toISOString().split('T')[0];
+              }
+              if (raw instanceof Date) {
+                return raw.toISOString().split('T')[0];
+              }
+              if (typeof raw === 'string') {
+                // DD/MM/YYYY -> YYYY-MM-DD
+                const brMatch = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+                if (brMatch) {
+                  return `${brMatch[3]}-${brMatch[2].padStart(2, '0')}-${brMatch[1].padStart(2, '0')}`;
+                }
+                // Já está YYYY-MM-DD
+                if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+                // Tentar parse genérico
+                const d = new Date(raw);
+                if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+              }
+              return '';
+            };
+
             const cndsImportadas: CND[] = jsonData.map((row: any, index: number) => {
               const timestamp = Date.now();
-
-              // Converter data do Excel (pode ser número serial ou string)
-              let vencimento = '';
-              const vencimentoRaw = row['Vencimento'];
-
-              if (vencimentoRaw) {
-                if (typeof vencimentoRaw === 'number') {
-                  // Excel armazena datas como números seriais (dias desde 1900-01-01)
-                  const excelEpoch = new Date(1899, 11, 30); // 30 de dezembro de 1899
-                  const dataVencimento = new Date(excelEpoch.getTime() + vencimentoRaw * 86400000);
-                  vencimento = dataVencimento.toISOString().split('T')[0]; // Formato YYYY-MM-DD
-                } else if (typeof vencimentoRaw === 'string') {
-                  // Se já for string, tentar usar diretamente
-                  vencimento = vencimentoRaw;
-                } else if (vencimentoRaw instanceof Date) {
-                  // Se for objeto Date
-                  vencimento = vencimentoRaw.toISOString().split('T')[0];
-                }
-              }
+              // Suporta ambos os formatos de coluna (antigo e novo)
+              const vencimentoRaw = row['Certificado - Data de expiração (completa)'] || row['Vencimento'];
+              const vencimento = parseDate(vencimentoRaw);
+              const prazo = parseDate(row['Prazo']);
+              const cnpjRaw = row['Cliente - CNPJ'];
+              const cnpj = cnpjRaw != null ? String(cnpjRaw).trim() : '';
+              const cndNome = row['Certificado - Nome'] || row['CND'] || '';
 
               return {
                 id: `${timestamp}-${index}`,
-                'Cliente - Código': row['Cliente - Código'] || '',
-                'Cliente - Nome': row['Cliente - Nome'] || '',
-                'Cliente - CNPJ': row['Cliente - CNPJ'] || '',
-                'CND': row['CND'] || '',
+                'Cliente - Código': String(row['Cliente - Código'] || '').trim(),
+                'Cliente - Nome': String(row['Cliente - Nome'] || '').trim(),
+                'Cliente - CNPJ': cnpj,
+                'CND': String(cndNome).trim(),
                 'Vencimento': vencimento,
                 'Mês Referência': mesReferencia,
                 status: calcularStatus(vencimento),
-                'Observação': row['Observação'] || row['Observacao'] || '',
-                'Pendência': row['Pendência'] || row['Pendencia'] || '',
-                'Responsável': row['Responsável'] || row['Responsavel'] || '',
-                'Prazo': row['Prazo'] || ''
+                'Observação': String(row['Observação'] || row['Observacao'] || '').trim(),
+                'Pendência': String(row['Pendência'] || row['Pendencia'] || '').trim(),
+                'Responsável': String(row['Responsável'] || row['Responsavel'] || '').trim(),
+                'Prazo': prazo
               };
             });
 
-            await addManyCnds(cndsImportadas);
+            // Enviar em lotes de 100
+            for (let i = 0; i < cndsImportadas.length; i += 100) {
+              const batch = cndsImportadas.slice(i, i + 100);
+              await addManyCnds(batch);
+            }
             setShowUpload(false);
             setModal({ show: false, type: 'success', title: '', message: '' });
           } catch (error) {
@@ -1158,7 +1177,21 @@ export default function CNDsPage() {
                 </div>
 
                 <div className="border-t border-gray-200 pt-4">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Controle de Pendências</h3>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-gray-900">Controle de Pendências</h3>
+                    {(cndEditando['Pendência'] || cndEditando['Responsável'] || cndEditando['Prazo']) && (
+                      <button
+                        type="button"
+                        onClick={() => setCndEditando({...cndEditando, 'Pendência': '', 'Responsável': '', 'Prazo': ''})}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-green-700 bg-green-50 border border-green-300 rounded-lg hover:bg-green-100 transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        Pendência Resolvida
+                      </button>
+                    )}
+                  </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">

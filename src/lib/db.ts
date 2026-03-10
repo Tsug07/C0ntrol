@@ -1,14 +1,36 @@
 import { Pool } from 'pg';
 
-// Pool de conexões PostgreSQL
+// Configuração do pool com limites de segurança e performance
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  // SSL apenas em produção com banco externo
+  ssl: process.env.DATABASE_URL?.includes('localhost') || process.env.DATABASE_URL?.includes('c0ntrol_db')
+    ? false
+    : (process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false),
+  // Configurações de pool para produção
+  max: 20, // Máximo de conexões
+  min: 2, // Mínimo de conexões mantidas
+  idleTimeoutMillis: 30000, // Fechar conexões idle após 30s
+  connectionTimeoutMillis: 10000, // Timeout de conexão: 10s
+  // Statement timeout para prevenir queries lentas
+  statement_timeout: 30000, // 30 segundos máximo por query
 });
 
-// Testar conexão
+// Eventos do pool para monitoramento
 pool.on('error', (err) => {
-  console.error('Erro inesperado no pool PostgreSQL:', err);
+  console.error('[DB Pool] Erro inesperado no pool PostgreSQL:', err);
+});
+
+pool.on('connect', () => {
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[DB Pool] Nova conexão estabelecida');
+  }
+});
+
+pool.on('remove', () => {
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[DB Pool] Conexão removida do pool');
+  }
 });
 
 // Helper para queries

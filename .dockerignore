@@ -7,22 +7,15 @@ npm-debug.log
 out
 
 # Environment
-.env
 .env.local
 .env*.local
 
 # Git
 .git
-.gitignore
 
 # IDE
 .idea
 .vscode
-
-# Docker
-Dockerfile
-docker-compose.yml
-.dockerignore
 
 # Docs
 README.md
