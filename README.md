@@ -147,10 +147,12 @@ npm run dev
 
 ## Variáveis de Ambiente
 
-| Variável | Descrição | Valor Padrão (Docker) |
-|----------|-----------|----------------------|
-| `DATABASE_URL` | String de conexão PostgreSQL | `postgresql://c0ntrol_user:CanellaeSantos@c0ntrol_db:5432/c0ntrol` |
-| `NODE_ENV` | Ambiente de execução | `production` |
+| Variável | Descrição |
+|----------|-----------|
+| `DATABASE_URL` | String de conexão PostgreSQL |
+| `NODE_ENV` | Ambiente de execução (`production` / `development`) |
+
+> As credenciais do banco estão definidas no `docker-compose.yml` e no `.env.example`. Consulte esses arquivos para os valores.
 
 ---
 
@@ -163,13 +165,7 @@ npm run dev
 
 ### Acessar o banco via pgAdmin
 
-| Campo | Valor |
-|-------|-------|
-| Host | `localhost` |
-| Porta | `5433` |
-| Database | `c0ntrol` |
-| Usuário | `c0ntrol_user` |
-| Senha | `CanellaeSantos` |
+As credenciais de conexão (host, porta, usuário e senha) estão no `docker-compose.yml`.
 
 ---
 
